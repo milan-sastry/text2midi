@@ -408,7 +408,7 @@ class Transformer(Module):
         tgt = self.input_emb(tgt) * math.sqrt(self.d_model)
         tgt = self.pos_encoder(tgt)
         # tgt = tgt + tgt_pos
-        
+        # store tgt before encoder, store output after.
         if self.use_moe:
             with torch.cuda.amp.autocast(enabled =False):
                 output, sum_total_aux_loss = self.decoder(tgt, memory, memory_mask=memory_mask,                                
@@ -1392,7 +1392,7 @@ def test_generate(caption):
 
     artifact_folder = '../artifacts'
     tokenizer_filepath = os.path.join(artifact_folder, "vocab_remi.pkl")
-    caption_dataset_path = '/root/text2midi/captions/train.json'
+    caption_dataset_path = '/root/text2midi/captions/captions.json'
     print(f'caption_dataset_path: {caption_dataset_path}')
 
     # Load the tokenizer dictionary
@@ -1472,7 +1472,7 @@ def run_accelerate_generation():
     artifact_folder = '../artifacts'
     tokenizer_filepath = os.path.join(artifact_folder, "vocab_remi.pkl")
     model_path = '/root/output_test_new/epoch_30/pytorch_model.bin'
-    captions_path = '/root/captions/train.json'
+    captions_path = '/../captions/captions.json'
     
     with jsonlines.open(captions_path) as reader:
         selected_captions = [line for line in reader if line.get('test_set') is True]

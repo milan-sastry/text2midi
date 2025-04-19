@@ -22,6 +22,6 @@ def select_and_split_captions(input_path, output_dir, num_splits=6):
         print(f'Saved {len(split_captions)} captions to {output_path}')
 
 if __name__ == "__main__":
-    input_path = '/root/captions/train.json'
+    input_path = '/root/captions/captions.json'
     output_dir = '/root/captions/'
     select_and_split_captions(input_path, output_dir)

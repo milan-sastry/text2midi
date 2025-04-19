@@ -1,0 +1,48 @@
+{
+  "os": "macOS-15.1.1-x86_64-i386-64bit",
+  "python": "CPython 3.11.12",
+  "startedAt": "2025-04-18T02:58:10.642748Z",
+  "args": [
+    "--config",
+    "../config.yaml"
+  ],
+  "program": "/Users/milansastry/Desktop/junior_spring/cos485/final/text2midi/model/train_accelerate.py",
+  "codePath": "model/train_accelerate.py",
+  "git": {
+    "remote": "https://github.com/AMAAI-Lab/text2midi",
+    "commit": "f3245ee402b29ba00b86c6eb9813032f3f05954f"
+  },
+  "root": "/Users/milansastry/Desktop/junior_spring/cos485/final/text2midi/model",
+  "host": "dynamic-oit-ip4-wifirestricted03-10-49-252-85.princeton.edu",
+  "username": "milansastry",
+  "executable": "/Users/milansastry/Desktop/junior_spring/cos485/final/text2midi/venv/bin/python3.11",
+  "codePathLocal": "train_accelerate.py",
+  "cpu_count": 10,
+  "cpu_count_logical": 10,
+  "disk": {
+    "/": {
+      "total": "494384795648",
+      "used": "202913521664"
+    },
+    "/System/Volumes/Data": {
+      "total": "494384795648",
+      "used": "202913521664"
+    }
+  },
+  "memory": {
+    "total": "17179869184"
+  },
+  "cpu": {
+    "count": 10,
+    "countLogical": 10
+  },
+  "apple": {
+    "name": "Unknown",
+    "ecpuCores": 6,
+    "pcpuCores": 4,
+    "gpuCores": 10,
+    "memoryGb": 16,
+    "swapTotalBytes": "7516192768",
+    "ramTotalBytes": "17179869184"
+  }
+}
