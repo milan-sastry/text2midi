@@ -1,5 +1,6 @@
 # from aria.tokenizer import AbsTokenizer
 # aria_tokenizer = AbsTokenizer()
+import matplotlib.pyplot as plt
 import copy
 import json
 from typing import Optional, Any, Union, Callable
@@ -22,6 +23,7 @@ from torch.multiprocessing import Process, set_start_method
 from torch.nn.init import xavier_uniform_
 import torch.nn.functional as F
 import torch.nn as nn
+import numpy as np
 
 from st_moe_pytorch import MoE
 from st_moe_pytorch import SparseMoEBlock
@@ -407,8 +409,11 @@ class Transformer(Module):
 
         tgt = self.input_emb(tgt) * math.sqrt(self.d_model)
         tgt = self.pos_encoder(tgt)
+        self.last_decoder_input = tgt.detach().cpu()
+
         # tgt = tgt + tgt_pos
         # store tgt before encoder, store output after.
+
         if self.use_moe:
             with torch.cuda.amp.autocast(enabled =False):
                 output, sum_total_aux_loss = self.decoder(tgt, memory, memory_mask=memory_mask,                                
@@ -418,7 +423,11 @@ class Transformer(Module):
             output = self.decoder(tgt, memory, memory_mask=memory_mask,                                
                                 memory_key_padding_mask=memory_key_padding_mask,
                                 tgt_is_causal=tgt_is_causal, memory_is_causal=memory_is_causal)
-        
+            
+        self.last_decoder_output = output.detach().cpu()
+        self.dec_in  = np.array(self.last_decoder_input[0].detach().cpu().tolist()).T 
+        self.dec_out = np.array(self.last_decoder_output[0].detach().cpu().tolist()).T
+       
         output = self.projection(output)
         # output = F.log_softmax(output, dim=-1)
 
@@ -426,6 +435,26 @@ class Transformer(Module):
             return output, sum_total_aux_loss
         else:
             return output
+        
+    def plot_step(self, step: int):
+        fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+        im1 = axes[0].imshow(self.dec_in, aspect='auto', cmap='hot', interpolation='nearest')
+        axes[0].set_title(f"Step {step} Decoder Input")
+        axes[0].set_xlabel("Time step")
+        axes[0].set_ylabel("Embedding dim")
+        fig.colorbar(im1, ax=axes[0], fraction=0.046, pad=0.04)
+
+        im2 = axes[1].imshow(self.dec_out, aspect='auto',cmap='hot',interpolation='nearest')
+        axes[1].set_title(f"Step {step} Decoder Output")
+        axes[1].set_xlabel("Time step")
+        axes[1].set_ylabel("Embedding dim")
+        fig.colorbar(im2, ax=axes[1], fraction=0.046, pad=0.04)
+
+        plt.tight_layout()
+        #plt.savefig(f"decoder_step_{step:03d}.png", dpi=200)
+        filepath = os.path.join("./plots", f"decoder_step_{step:03d}.png")
+        plt.savefig(filepath, dpi=200)
+        plt.close()
         
     def generate(self, src: Tensor, src_mask: Tensor, max_len: int = 100, temperature: float = 1.0):
         ## ADD A START OF SEQUENCE TOKEN  <SS> token to the src tensor
@@ -452,7 +481,7 @@ class Transformer(Module):
             # assert max_index < 21634, "tgt_fin contains index out of range. Adjust n_vocab or fix tgt_fin indices."
             tgt = tgt_fin
             if self.use_moe:
-                output, _ = self.froward(src, src_mask, tgt, memory_mask=None,                                
+                output, _ = self.forward(src, src_mask, tgt, memory_mask=None,                                
                                 memory_key_padding_mask=None,
                                 tgt_is_causal=True, memory_is_causal=False)
             else:
@@ -460,6 +489,7 @@ class Transformer(Module):
                                       memory_key_padding_mask=None,
                                       tgt_is_causal=True, memory_is_causal=False)          
             # logits = self.projection(output)
+            if i % 200 == 0: self.plot_step(i)
             logits = output
             output = F.log_softmax(logits/temperature, dim=-1)
             output = output.view(-1, output.size(-1))

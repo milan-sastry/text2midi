@@ -46,7 +46,7 @@ attention_mask =nn.utils.rnn.pad_sequence(inputs.attention_mask, batch_first=Tru
 attention_mask = attention_mask.to(device)
 
 # Generate the midi
-output = model.generate(input_ids, attention_mask, max_len=200,temperature = 1.0)
+output = model.generate(input_ids, attention_mask, max_len=2048,temperature = 1.0)
 output_list = output[0].tolist()
 generated_midi = r_tokenizer.decode(output_list)
 generated_midi.dump_midi("output.mid")
