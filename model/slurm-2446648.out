@@ -1,0 +1,36 @@
+[2025-04-28 18:34:31,241] [INFO] [real_accelerator.py:239:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2025-04-28 18:34:37,203] [INFO] [real_accelerator.py:239:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+/home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/accelerate/accelerator.py:249: FutureWarning: `logging_dir` is deprecated and will be removed in version 0.18.0 of 🤗 Accelerate. Use `project_dir` instead.
+  warnings.warn(
+/home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/accelerate/accelerator.py:416: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  self.scaler = torch.cuda.amp.GradScaler(**kwargs)
+04/28/2025 18:34:40 - INFO - __main__ - Distributed environment: DistributedType.NO
+Num processes: 1
+Process index: 0
+Local process index: 0
+Device: cuda
+
+Mixed precision type: fp16
+
+You are using the default legacy behaviour of the <class 'transformers.models.t5.tokenization_t5.T5Tokenizer'>. This is expected, and simply means that the `legacy` (previous) behavior will be used so nothing changes for you. If you want to use the new behaviour, set `legacy=False`. This should only be set if you understand what it means, and thoroughly read the reason why this was added as explained in https://github.com/huggingface/transformers/pull/24565
+/home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/torch/utils/data/dataloader.py:617: UserWarning: This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 1, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(
+/home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/accelerate/accelerator.py:1235: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  model.forward = torch.cuda.amp.autocast(dtype=torch.float16)(model.forward)
+04/28/2025 18:34:41 - INFO - __main__ - ***** Running training *****
+04/28/2025 18:34:41 - INFO - __main__ -   Num examples = 168385
+04/28/2025 18:34:41 - INFO - __main__ -   Num Epochs = 140
+04/28/2025 18:34:41 - INFO - __main__ -   Instantaneous batch size per device = 8
+04/28/2025 18:34:41 - INFO - __main__ -   Total train batch size (w. parallel, distributed & accumulation) = 32
+04/28/2025 18:34:41 - INFO - __main__ -   Gradient Accumulation steps = 4
+04/28/2025 18:34:41 - INFO - __main__ -   Total optimization steps = 736680
+CUDA_VISIBLE_DEVICES: 0
+CUDA device count: 1
+CUDA current device: 0
+CUDA device name: Tesla V100-PCIE-32GB
+Length of dataset:  168385
+Total number of trainable parameters: 114223628
+num_update_steps_per_epoch 5262
+max_train_steps None
+max_train_steps 736680
+  0%|          | 0/736680 [00:00<?, ?it/s]  0%|          | 0/736680 [00:11<?, ?it/s, Loss=6.84]  0%|          | 1/736680 [00:11<2300:09:28, 11.24s/it, Loss=6.84]slurmstepd: error: *** JOB 2446648 ON adroit-h11g3 CANCELLED AT 2025-04-28T18:34:53 ***

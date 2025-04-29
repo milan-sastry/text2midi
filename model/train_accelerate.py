@@ -5,7 +5,7 @@ import yaml
 import math
 import time
 from transformers import get_scheduler
-import wandb
+#import wandb
 import pickle
 import numpy as np
 import json
@@ -18,7 +18,11 @@ from data_loader_remi import Text2MusicDataset
 from transformer_model import Transformer
 from torch.utils.data import DataLoader
 import logging
-
+print("CUDA_VISIBLE_DEVICES:", os.environ["CUDA_VISIBLE_DEVICES"])
+import torch
+print("CUDA device count:", torch.cuda.device_count())
+print("CUDA current device:", torch.cuda.current_device())
+print("CUDA device name:", torch.cuda.get_device_name(torch.cuda.current_device()))
 logger = get_logger(__name__)
 
 # Load config file
@@ -39,6 +43,7 @@ caption_dataset_path = configs['raw_data']['caption_dataset_path']
 # Load the caption dataset
 with jsonlines.open(caption_dataset_path) as reader:
     captions = list(reader)
+    captions = captions[:len(captions)//100]
     # captions = list(reader)
 
 def collate_fn(batch):
@@ -91,8 +96,8 @@ if accelerator.is_main_process:
         os.makedirs(output_dir, exist_ok=True)
     os.makedirs("{}/{}".format(output_dir, "outputs"), exist_ok=True)
     accelerator.project_configuration.automatic_checkpoint_naming = False
-    wandb.login()
-    wandb.init(project="Text-2-Midi", settings=wandb.Settings(init_timeout=120))
+   #wandb.login(key="eb9179617385483c4f4fa144e94605f18574b7b5")
+   #wandb.init(project="Text-2-Midi", settings=wandb.Settings(init_timeout=120))
 accelerator.wait_for_everyone()
 device = accelerator.device
 
@@ -101,7 +106,7 @@ with accelerator.main_process_first():
     dataloader = DataLoader(dataset, batch_size=per_device_train_batch_size, shuffle=True, num_workers=4, collate_fn=collate_fn, drop_last=True)
 
 model = Transformer(vocab_size, d_model, nhead, max_len, num_layers, dim_feedforward, use_moe, num_experts, device=device)
-model.load_state_dict(torch.load('/root/output_test_new/epoch_68/pytorch_model.bin', map_location=device))
+#model.load_state_dict(torch.load('/root/output_test_new/epoch_68/pytorch_model.bin', map_location=device))
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
@@ -181,7 +186,7 @@ def train_model_accelerate(model, dataloader, criterion, num_epochs, max_train_s
                     result["epoch"] = epoch+1
                     result["step"] = completed_steps
                     result["train_loss"] = round(total_loss.item()/(gradient_accumulation_steps*completed_steps),4)
-                    wandb.log(result)
+                   #wandb.log(result)
             if isinstance(checkpointing_steps, int):
                 if completed_steps % checkpointing_steps == 0:
                     output_dir = f"step_{completed_steps }"

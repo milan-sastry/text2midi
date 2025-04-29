@@ -1,0 +1,185 @@
+[2025-04-28 19:01:40,484] [INFO] [real_accelerator.py:239:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2025-04-28 19:01:49,063] [INFO] [real_accelerator.py:239:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2025-04-28 19:01:49,079] [INFO] [real_accelerator.py:239:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+Warning: The cache directory for DeepSpeed Triton autotune, /home/ms1438/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+Warning: The cache directory for DeepSpeed Triton autotune, /home/ms1438/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+CUDA_VISIBLE_DEVICES: MIG-e03cb6bd-7a37-5775-8626-167e8465ded9,MIG-80ebef2c-dc0b-5e1a-8fc1-9d22baab9e3e
+CUDA device count: 1
+CUDA current device: 0
+CUDA device name: NVIDIA A100-PCIE-40GB MIG 3g.20gb
+CUDA_VISIBLE_DEVICES: MIG-e03cb6bd-7a37-5775-8626-167e8465ded9,MIG-80ebef2c-dc0b-5e1a-8fc1-9d22baab9e3e
+CUDA device count: 1
+CUDA current device: 0
+CUDA device name: NVIDIA A100-PCIE-40GB MIG 3g.20gb
+/home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/accelerate/accelerator.py:249: FutureWarning: `logging_dir` is deprecated and will be removed in version 0.18.0 of 🤗 Accelerate. Use `project_dir` instead.
+  warnings.warn(
+/home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/accelerate/accelerator.py:416: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  self.scaler = torch.cuda.amp.GradScaler(**kwargs)
+04/28/2025 19:01:54 - INFO - __main__ - Distributed environment: DistributedType.MULTI_GPU  Backend: nccl
+Num processes: 2
+Process index: 0
+Local process index: 0
+Device: cuda:0
+
+Mixed precision type: fp16
+
+/home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/accelerate/accelerator.py:249: FutureWarning: `logging_dir` is deprecated and will be removed in version 0.18.0 of 🤗 Accelerate. Use `project_dir` instead.
+  warnings.warn(
+[rank1]: ╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+[rank1]: │ /home/ms1438/text2midi/model/train_accelerate.py:82 in <module>              │
+[rank1]: │                                                                              │
+[rank1]: │    79 │   accelerator_log_kwargs["log_with"] = report_to                     │
+[rank1]: │    80 │   # Remove the logging_dir argument in case of error                 │
+[rank1]: │    81 │   accelerator_log_kwargs["logging_dir"] = output_dir                 │
+[rank1]: │ ❱  82 accelerator = Accelerator(gradient_accumulation_steps=gradient_accumul │
+[rank1]: │    83 logging.basicConfig(                                                   │
+[rank1]: │    84 │   format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",     │
+[rank1]: │    85 │   datefmt="%m/%d/%Y %H:%M:%S",                                       │
+[rank1]: │                                                                              │
+[rank1]: │ /home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/accelerate/accele │
+[rank1]: │ rator.py:346 in __init__                                                     │
+[rank1]: │                                                                              │
+[rank1]: │    343 │   │   │   │   │   │   self.fp8_recipe_handler = handler             │
+[rank1]: │    344 │   │                                                                 │
+[rank1]: │    345 │   │   kwargs = self.init_handler.to_kwargs() if self.init_handler i │
+[rank1]: │ ❱  346 │   │   self.state = AcceleratorState(                                │
+[rank1]: │    347 │   │   │   mixed_precision=mixed_precision,                          │
+[rank1]: │    348 │   │   │   cpu=cpu,                                                  │
+[rank1]: │    349 │   │   │   dynamo_plugin=dynamo_plugin,                              │
+[rank1]: │                                                                              │
+[rank1]: │ /home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/accelerate/state. │
+[rank1]: │ py:540 in __init__                                                           │
+[rank1]: │                                                                              │
+[rank1]: │   537 │   │   if parse_flag_from_env("ACCELERATE_USE_CPU"):                  │
+[rank1]: │   538 │   │   │   cpu = True                                                 │
+[rank1]: │   539 │   │   if PartialState._shared_state == {}:                           │
+[rank1]: │ ❱ 540 │   │   │   PartialState(cpu, **kwargs)                                │
+[rank1]: │   541 │   │   self.__dict__.update(PartialState._shared_state)               │
+[rank1]: │   542 │   │   self._check_initialized(mixed_precision, cpu)                  │
+[rank1]: │   543 │   │   if not self.initialized:                                       │
+[rank1]: │                                                                              │
+[rank1]: │ /home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/accelerate/state. │
+[rank1]: │ py:136 in __init__                                                           │
+[rank1]: │                                                                              │
+[rank1]: │   133 │   │   │   │   self.local_process_index = int(os.environ.get("LOCAL_R │
+[rank1]: │   134 │   │   │   │   if self.device is None:                                │
+[rank1]: │   135 │   │   │   │   │   self.device = torch.device("cuda", self.local_proc │
+[rank1]: │ ❱ 136 │   │   │   │   torch.cuda.set_device(self.device)                     │
+[rank1]: │   137 │   │   │   elif get_int_from_env(["PMI_SIZE", "OMPI_COMM_WORLD_SIZE", │
+[rank1]: │   138 │   │   │   │   self.distributed_type = DistributedType.MULTI_CPU      │
+[rank1]: │   139 │   │   │   │   if is_ccl_available() and get_int_from_env(["CCL_WORKE │
+[rank1]: │                                                                              │
+[rank1]: │ /home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/torch/cuda/__init │
+[rank1]: │ __.py:478 in set_device                                                      │
+[rank1]: │                                                                              │
+[rank1]: │    475 │   """                                                               │
+[rank1]: │    476 │   device = _get_device_index(device)                                │
+[rank1]: │    477 │   if device >= 0:                                                   │
+[rank1]: │ ❱  478 │   │   torch._C._cuda_setDevice(device)                              │
+[rank1]: │    479                                                                       │
+[rank1]: │    480                                                                       │
+[rank1]: │    481 def get_device_name(device: Optional[_device_t] = None) -> str:       │
+[rank1]: ╰──────────────────────────────────────────────────────────────────────────────╯
+[rank1]: RuntimeError: CUDA error: invalid device ordinal
+[rank1]: CUDA kernel errors might be asynchronously reported at some other API call, so 
+[rank1]: the stacktrace below might be incorrect.
+[rank1]: For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+[rank1]: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[rank0]:[W428 19:01:55.408180024 ProcessGroupNCCL.cpp:4115] [PG ID 0 PG GUID 0 Rank 0]  using GPU 0 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect.Specify device_ids in barrier() to force use of a particular device,or call init_process_group() with a device_id.
+[rank1]:[W428 19:01:55.755382733 ProcessGroupNCCL.cpp:1250] Warning: WARNING: process group has NOT been destroyed before we destruct ProcessGroupNCCL. On normal program exit, the application should call destroy_process_group to ensure that any pending NCCL operations have finished in this process. In rare cases this process can exit before this point and block the progress of another member of the process group. This constraint has always been present,  but this warning has only been added since PyTorch 2.4 (function operator())
+W0428 19:01:59.692000 2082114 /scratch/network/ms1438/.conda/envs/venv/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/api.py:897] Sending process 2082153 closing signal SIGTERM
+E0428 19:01:59.842000 2082114 /scratch/network/ms1438/.conda/envs/venv/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/api.py:869] failed (exitcode: 1) local_rank: 1 (pid: 2082154) of binary: /home/ms1438/.conda/envs/venv/bin/python
+Warning: The cache directory for DeepSpeed Triton autotune, /home/ms1438/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /home/ms1438/.conda/envs/venv/bin/accelerate:8 in <module>                   │
+│                                                                              │
+│   5 from accelerate.commands.accelerate_cli import main                      │
+│   6 if __name__ == '__main__':                                               │
+│   7 │   sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])     │
+│ ❱ 8 │   sys.exit(main())                                                     │
+│   9                                                                          │
+│                                                                              │
+│ /home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/accelerate/comman │
+│ ds/accelerate_cli.py:45 in main                                              │
+│                                                                              │
+│   42 │   │   exit(1)                                                         │
+│   43 │                                                                       │
+│   44 │   # Run                                                               │
+│ ❱ 45 │   args.func(args)                                                     │
+│   46                                                                         │
+│   47                                                                         │
+│   48 if __name__ == "__main__":                                              │
+│                                                                              │
+│ /home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/accelerate/comman │
+│ ds/launch.py:914 in launch_command                                           │
+│                                                                              │
+│   911 │   elif args.use_megatron_lm and not args.cpu:                        │
+│   912 │   │   multi_gpu_launcher(args)                                       │
+│   913 │   elif args.multi_gpu and not args.cpu:                              │
+│ ❱ 914 │   │   multi_gpu_launcher(args)                                       │
+│   915 │   elif args.tpu and not args.cpu:                                    │
+│   916 │   │   if args.tpu_use_cluster:                                       │
+│   917 │   │   │   tpu_pod_launcher(args)                                     │
+│                                                                              │
+│ /home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/accelerate/comman │
+│ ds/launch.py:603 in multi_gpu_launcher                                       │
+│                                                                              │
+│   600 │   )                                                                  │
+│   601 │   with patch_environment(**current_env):                             │
+│   602 │   │   try:                                                           │
+│ ❱ 603 │   │   │   distrib_run.run(args)                                      │
+│   604 │   │   except Exception:                                              │
+│   605 │   │   │   if is_rich_available() and debug:                          │
+│   606 │   │   │   │   console = get_console()                                │
+│                                                                              │
+│ /home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/torch/distributed │
+│ /run.py:910 in run                                                           │
+│                                                                              │
+│   907 │   │   )                                                              │
+│   908 │                                                                      │
+│   909 │   config, cmd, cmd_args = config_from_args(args)                     │
+│ ❱ 910 │   elastic_launch(                                                    │
+│   911 │   │   config=config,                                                 │
+│   912 │   │   entrypoint=cmd,                                                │
+│   913 │   )(*cmd_args)                                                       │
+│                                                                              │
+│ /home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/torch/distributed │
+│ /launcher/api.py:138 in __call__                                             │
+│                                                                              │
+│   135 │   │   self._entrypoint = entrypoint                                  │
+│   136 │                                                                      │
+│   137 │   def __call__(self, *args):                                         │
+│ ❱ 138 │   │   return launch_agent(self._config, self._entrypoint, list(args) │
+│   139                                                                        │
+│   140                                                                        │
+│   141 def _get_entrypoint_name(                                              │
+│                                                                              │
+│ /home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/torch/distributed │
+│ /launcher/api.py:269 in launch_agent                                         │
+│                                                                              │
+│   266 │   │   │   # if the error files for the failed children exist         │
+│   267 │   │   │   # @record will copy the first error (root cause)           │
+│   268 │   │   │   # to the error file of the launcher process.               │
+│ ❱ 269 │   │   │   raise ChildFailedError(                                    │
+│   270 │   │   │   │   name=entrypoint_name,                                  │
+│   271 │   │   │   │   failures=result.failures,                              │
+│   272 │   │   │   )                                                          │
+╰──────────────────────────────────────────────────────────────────────────────╯
+ChildFailedError: 
+============================================================
+train_accelerate.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2025-04-28_19:01:59
+  host      : adroit-h11g2
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 2082154)
+  error_file: <N/A>
+  traceback : To enable traceback see: 
+https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

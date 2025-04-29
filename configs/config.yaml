@@ -8,7 +8,7 @@ model:
     use_moe: False
     num_experts: 4
     use_deepspeed: False
-    use_accelerate: True
+    use_accelerate: False
   
 
 training:
@@ -21,8 +21,8 @@ training:
     with_tracking: True
     checkpointing_steps: epoch
     report_to: wandb
-    output_dir: /root/output_test_new
-    per_device_train_batch_size: 32
+    output_dir: /scratch/network/ms1438/output_test_new
+    per_device_train_batch_size: 8
     use_scheduler: True
     lr_scheduler_type: cosine #choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"]
     num_warmup_steps: 100
@@ -34,10 +34,10 @@ training:
     k: -0.312
 
 raw_data:
-  caption_dataset_path: /root/captions/train.json
+  caption_dataset_path: /home/ms1438/text2midi/captions/captions.json
   raw_data_folders: 
     lmd: 
-      folder_path: /import/c4dm-datasets-ext/lakhmidi
+      folder_path: /scratch/network/ms1438
       file_extension: midi
     symphonynet:
       folder_path: /root/text2midi/data/symphonynet/data/SymphonyNet_Dataset
@@ -52,11 +52,11 @@ raw_data:
       folder_path: /import/c4dm-datasets/PiJAMA/data/midi
       file_extension: midi
     midicaps:
-      folder_path: /root/data
+      folder_path: /scratch/network/ms1438
       file_extension: mid
     
 
 deepspeed_config:
-  deepspeed_config_path: /root/test/text2midi/configs/ds_config.json
+  deepspeed_config_path: /home/ms1438/text2midi/configs/ds_config.json
 
 artifact_folder: ../artifacts

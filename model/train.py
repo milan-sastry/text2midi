@@ -1,10 +1,10 @@
 import os 
-# print("CUDA_VISIBLE_DEVICES:", os.environ["CUDA_VISIBLE_DEVICES"])
-# import torch
-# print("CUDA device count:", torch.cuda.device_count())
-# print("CUDA current device:", torch.cuda.current_device())
-# print("CUDA device name:", torch.cuda.get_device_name(torch.cuda.current_device()))
-# os.environ['CUDA_VISIBLE_DEVICES']="2,3"
+print("CUDA_VISIBLE_DEVICES:", os.environ["CUDA_VISIBLE_DEVICES"])
+import torch
+print("CUDA device count:", torch.cuda.device_count())
+print("CUDA current device:", torch.cuda.current_device())
+print("CUDA device name:", torch.cuda.get_device_name(torch.cuda.current_device()))
+os.environ['CUDA_VISIBLE_DEVICES']="2,3"
 from torch.cuda import is_available as cuda_available, is_bf16_supported
 from torch.backends.mps import is_available as mps_available
 import torch.nn as nn
@@ -22,7 +22,7 @@ from evaluate import load as load_metric
 import sys
 import argparse
 import jsonlines
-from data_loader import Text2MusicDataset
+from data_loader_remi import Text2MusicDataset
 from transformer_model import Transformer
 from torch.utils.data import DataLoader
 
@@ -78,7 +78,7 @@ def collate_fn(batch):
 
 
 # Load the dataset
-dataset = Text2MusicDataset(configs, captions, mode="train", shuffle = True)
+dataset = Text2MusicDataset(configs, captions, tokenizer, mode="train", shuffle = True)
 data_length = len(dataset)
 dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4, collate_fn=collate_fn)
 
