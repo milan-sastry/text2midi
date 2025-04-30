@@ -183,6 +183,196 @@ def apply_rotary_emb(x: torch.Tensor, freqs_cis: torch.Tensor) -> torch.Tensor:
     
     return x
 
+def precompute_freqs_cis_latent(dim: int, end: int, theta: float = 10000.0):
+    freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim))
+    # [: (dim // 2)] for odd number truncation
+    # torch.arange(0, dim, 2) -> 2(i-1)//d while i= 1,2,..,(d//2)
+
+    t = torch.arange(end, device=freqs.device)
+    freqs = torch.outer(t, freqs).float()  # gives diffrent angle vector
+
+    # e^it = cos(t) + i sin(t)
+    freqs_cos = torch.cos(freqs)  # real
+    freqs_sin = torch.sin(freqs)  # imaginary
+    return freqs_cos.to(device), freqs_sin.to(device)
+
+def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
+    ndim = x.dim()
+    assert 1 < ndim
+    assert freqs_cis.shape == (
+        x.shape[1],
+        x.shape[-1],
+    ), f"{freqs_cis.shape=}, {(x.shape[1], x.shape[-1])=}"
+
+    # keep 2nd (T) and last(freq) dim same else make dim 1 for freq_cis
+    shape = [d if i == 1 or i == ndim - 1 else 1 for i, d in enumerate(x.shape)]
+    # print(shape)
+    return freqs_cis.view(shape)
+
+def apply_rope(q,k, cis):
+    # Idea suppose vector v = [x,y,x1,y1,...] # v.shape = dim
+    # convert vetor into complex num # ie two vec one real, one imagery
+    # [x,y,x1,y1,...] -> x+iy, x1+iy1
+    # Multiplying by complex num == roatate vector
+    # => (x + iy) * (cos + isin) -> x'+iy'
+    # restack
+    # x'+iy' -> [x',y',x1',y1'...]
+    # you roated vector in chunks of two lfg!!!
+    _, seq_len, _, _ = q.shape
+
+    freqs_cos, freqs_sin = cis
+    freqs_cos, freqs_sin = freqs_cos[:seq_len], freqs_sin[:seq_len]
+
+    #  rehsape a shape (...,n )-> (..., n//2,2)
+    q_cis = q.float().reshape(
+        q.shape[:-1] + (-1, 2)
+    )  # (B,T,nhead,C) -> (B,T,nhead,Cc,2) # Cc = C//2
+    k_cis = k.float().reshape(k.shape[:-1] + (-1, 2))  # (B,T,nhead,C) -> (B,T,nhead,Cc,2)
+
+    xq_r, xq_i = q_cis.unbind(-1)  # (B,T,nhead,Cc,2) -> ((B,T,Cc), (B,T,Cc)) split into two tuple
+    xk_r, xk_i = k_cis.unbind(-1)  # (B,T,nhead,Cc,2) -> ((B,T,Cc), (B,T,Cc))
+
+    freqs_cos = reshape_for_broadcast(freqs_cos, xq_r)  # freqs.shape = (1,T,1,Cc)
+    freqs_sin = reshape_for_broadcast(freqs_sin, xq_r)
+
+    # e+if = (a+ib) * (c+di) = (ac-bd) + i (ad+bc)
+    # a = xq_r , b = xq_i
+    # c = fcos , d = fsin
+    # ...
+    # e = (ac-bd) = xq_r * freqs_cos - xq_i * freqs_sin
+    # f = (c+di)  = xq_r * freqs_sin + xq_i * freqs_cos
+
+    xq_out_r = xq_r * freqs_cos - xq_i * freqs_sin  # (ac-bd)   # shape =  # (B,T,nhead,Cc)
+    xq_out_i = xq_r * freqs_sin + xq_i * freqs_cos  # (ad+bc) * i
+    xk_out_r = xk_r * freqs_cos - xk_i * freqs_sin  # (ac-bd)
+    xk_out_i = xk_r * freqs_sin + xk_i * freqs_cos  # (ad+bc) * i
+
+    # now we stack r,i -> [r,i,r2,i2]
+    xq_out = torch.stack([xq_out_r, xq_out_i], dim=-1)  # (B,T,nhead,Cc,2)
+    xk_out = torch.stack([xk_out_r, xk_out_i], dim=-1)  # (B,T,nhead,Cc,2)
+
+    # flatten last two dimensions
+    xq_out = xq_out.flatten(3)  # (B,T,nhead,C)
+    xk_out = xk_out.flatten(3)  # (B,T,nhead,C)
+
+    return xq_out.type_as(q), xk_out.type_as(q)
+
+class MultiHeadLatentAttention(nn.Module):
+    """
+    Multi Head Latent Attention 
+    paper: https://arxiv.org/pdf/2405.04434
+    
+    TLDR: 
+    kv are low ranks, this verient of attention project q,k,v to low rank to save memory,
+    replace linear with lora(ish) layers
+
+    source: https://github.com/joey00072/Multi-Head-Latent-Attention-MLA-
+    """
+    def __init__(
+        self,
+        embed_dim: int,
+        num_heads: int,
+        latent_dimensions: tuple,
+        batch_first: bool = True,
+        dropout: float = 0.1):
+        super().__init__()
+        
+        assert config.v_head_dim is not None , f"v_head_dim is not defined {config.v_head_dim=}"
+        assert config.q_lora_rank is not None , f"q_lora_rank is not defined {config.q_lora_rank=}"
+        assert config.kv_lora_rank is not None , f"kv_lora_rank is not defined {config.kv_lora_rank=}"
+        assert config.rope_head_dim is not None , f"rope_head_dim is not defined {config.rope_head_dim=}"
+        assert len(latent_dimensions) == 5, f"latent_dimensions should be a tuple of 5 elements, got {len(latent_dimensions)}"
+    
+        self.batch_first = batch_first
+        self.dim = embed_dim
+        self.num_heads = num_heads
+
+        self.v_head_dim, self.nope_head_dim, self.rope_head_dim, self.q_lora_rank, self.kv_lora_rank = latent_dimensions
+        
+        self.dropout = config.dropout
+
+        self.attn_map = None
+        
+        # note: head dim of query and key if different from head dim of value
+        
+        # (attention_dim == num_head*head_dim) > d_model in deepseekv2
+        # this is dim between wV and wQ
+        self.value_dim = self.num_heads * self.v_head_dim
+        
+        # this is dims between wQ and wK
+        self.nope_dim = self.num_heads * self.nope_head_dim
+        self.rope_dim = self.num_heads * self.rope_head_dim  
+        
+        # query compression
+        self.compress_q_linear = nn.Linear(self.dim, self.q_lora_rank, bias=False)  # W_DQ
+        self.decompress_q_nope = nn.Linear(self.q_lora_rank, self.nope_dim, bias=False)
+        self.decompress_q_rope = nn.Linear(self.q_lora_rank, self.rope_dim, bias=False)
+        self.q_norm = nn.modules.normalization.RMSNorm(self.q_lora_rank)
+        
+        
+        # key and value compression
+        self.compress_kv_linear = nn.Linear(self.dim, self.kv_lora_rank, bias=False)  # W_DKV
+        self.decompress_k_nope = nn.Linear(self.kv_lora_rank, self.nope_dim, bias=False)
+        self.decompress_v_linear = nn.Linear(self.kv_lora_rank, self.value_dim, bias=False)
+        self.kv_norm = nn.modules.normalization.RMSNorm(self.kv_lora_rank)
+        
+        
+        self.k_rope_linear = nn.Linear(self.dim, self.rope_head_dim  , bias=False)
+        # self.rope_norm = RMSNorm(self.rope_dim) # not in deepseekv2
+
+        self.proj = nn.Linear(self.value_dim , self.dim, bias=False)
+        self.res_dropout = nn.Dropout(p=config.dropout)
+        
+        
+    def forward(self, x: Tensor, freqs_cis: Tensor, is_causal: bool = True) -> Tensor:
+        
+        if not self.batch_first:
+            x = x.transpose(0, 1)
+        batch_size, seq_len, _ = x.shape
+
+        compressed_q = self.compress_q_linear(x)
+        norm_q = self.q_norm(compressed_q)
+        query_nope:Tensor = self.decompress_q_nope(norm_q)
+        query_rope:Tensor = self.decompress_q_rope(norm_q)
+
+        compressed_kv = self.compress_kv_linear(x)
+        norm_kv = self.kv_norm(compressed_kv)
+        key_nope: Tensor = self.decompress_k_nope(norm_kv)
+        value: Tensor = self.decompress_v_linear(norm_kv)
+        
+        key_rope:Tensor = self.k_rope_linear(x)
+        # norm_rope = self.rope_norm(key_rope)
+
+        query_nope = query_nope.view(batch_size, seq_len, self.num_heads, self.nope_head_dim).transpose(1,2)
+        query_rope = query_rope.view(batch_size, seq_len, self.num_heads, self.rope_head_dim).transpose(1,2)
+        
+        key_rope = key_rope.view(batch_size, seq_len, 1, self.rope_head_dim).transpose(1,2)
+        key_nope = key_nope.view(batch_size, seq_len, self.num_heads, self.nope_head_dim).transpose(1,2)
+        
+        value = value.view(batch_size, seq_len, self.num_heads, self.v_head_dim).transpose(1,2)
+        
+        # *** the line that fixes MLA :) ***
+        key_rope = key_rope/self.num_heads 
+
+        q_rope, k_rope = apply_rope(query_rope, key_rope, freqs_cis)
+        
+        q_recombined = torch.empty((batch_size,self.num_heads,seq_len, self.rope_head_dim + self.nope_head_dim), device=x.device)
+        k_recombined = torch.empty((batch_size, self.num_heads, seq_len, self.rope_head_dim + self.nope_head_dim), device=x.device)
+        
+        q_recombined[:,:,:,:self.nope_head_dim] = query_nope
+        q_recombined[:,:,:,self.nope_head_dim:] = q_rope
+        
+        # k_rope = torch.repeat_interleave(k_rope, self.num_heads, dim=1) # >> you dont need to do this <<
+        # 👇 broadcasting will do replication krope to all heads automagically
+        k_recombined[:,:,:,:self.nope_head_dim] = key_nope
+        k_recombined[:,:,:,self.nope_head_dim:] = k_rope
+
+        output = F.scaled_dot_product_attention(q_recombined, k_recombined, value, is_causal=True, dropout_p=self.dropout)
+        output = out.transpose(1, 2).contiguous().view(batch_size, seq_len, self.num_heads * self.v_head_dim)
+
+        output = self.proj(output)
+        output = self.res_dropout(output)
+        return output
 
 class MultiHeadSelfAttention(nn.Module):
     r"""Multi-head self-attention module.
@@ -272,6 +462,8 @@ class Transformer(Module):
         num_encoder_layers: the number of sub-encoder-layers in the encoder (default=6).
         num_decoder_layers: the number of sub-decoder-layers in the decoder (default=6).
         dim_feedforward: the dimension of the feedforward network model (default=2048).
+        latent_dimensions: a tuple of 5 elements, where the elements are v_head_dim,
+            nope_head_dim, rope_head_dim, q_lora_rank, kv_lora_rank in this order (ORDER IS IMPORTANT!)
         use_moe: if True, use MoE instead of linear layer for feedforward network (default=False).
         dropout: the dropout value (default=0.1).
         activation: the activation function of encoder/decoder intermediate layer, can be a string
@@ -297,7 +489,8 @@ class Transformer(Module):
     """
 
     def __init__(self, n_vocab: int = 30000, d_model: int = 512, nhead: int = 8, max_len: int = 5000,
-                 num_decoder_layers: int = 6, dim_feedforward: int = 2048, use_moe: bool = False, 
+                 num_decoder_layers: int = 6, dim_feedforward: int = 2048,
+                 latent_dimensions: tuple = None, use_moe: bool = False, 
                  num_experts: int = 16, dropout: float = 0.1, 
                  activation: Union[str, Callable[[Tensor], Tensor]] = F.relu,
                  layer_norm_eps: float = 1e-5, batch_first: bool = True, norm_first: bool = False,
@@ -311,13 +504,25 @@ class Transformer(Module):
         self.input_emb = nn.Embedding(n_vocab, d_model, **factory_kwargs)
         self.pos_encoder = PositionalEncoding(d_model, dropout, max_len).to(device)
 
+
+        if latent_dimensions is not None:
+            assert use_moe is False, "Mixture of Experts and Multihead Latent Attention cannot be used together in Transformer class"
+            assert len(latent_dimensions) == 5, f"latent_dimensions should be a tuple of 5 elements, got {len(latent_dimensions)}"
+            rope_head_dim = latent_dimensions[2]
+            cos, isin = precompute_freqs_cis_latent(rope_head_dim, max_len * 2)
+            self.register_buffer("freq_cos", cos)
+            self.register_buffer("freq_sin", isin)
+        else:
+            self.freq_cos = None
+            self.freq_sin = None
+
         # Load the FLAN-T5 encoder
         self.encoder = T5EncoderModel.from_pretrained("google/flan-t5-base").to(device)
         # Freeze the encoder
         for param in self.encoder.parameters():
             param.requires_grad = False
 
-        decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward, use_moe, num_experts, dropout,
+        decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward, latent_dimensions, use_moe, num_experts, dropout,
                                                 activation, layer_norm_eps, batch_first, norm_first,
                                                 bias, **factory_kwargs)
         decoder_norm = LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
@@ -402,6 +607,12 @@ class Transformer(Module):
             >>> # xdoctest: +SKIP
             >>> output = transformer_model(src, tgt, src_mask=src_mask)
         """
+
+        if self.batch_first:
+            _, N = src.shape
+        else: 
+            N, _ = src.shape
+        
         if src.dim() != tgt.dim():
             raise RuntimeError("the number of dimensions in src and tgt must be equal")
 
@@ -410,6 +621,11 @@ class Transformer(Module):
         tgt = self.input_emb(tgt) * math.sqrt(self.d_model)
         tgt = self.pos_encoder(tgt)
         self.last_decoder_input = tgt.detach().cpu()
+
+        if self.freq_cos is not None and self.freq_sin is not None:
+            freqs_cis = self.freq_cos[:N], self.freq_sin[:N]
+        else:
+            freqs_cis = None
 
         # tgt = tgt + tgt_pos
         # store tgt before encoder, store output after.
@@ -422,7 +638,7 @@ class Transformer(Module):
         else:
             output = self.decoder(tgt, memory, memory_mask=memory_mask,                                
                                 memory_key_padding_mask=memory_key_padding_mask,
-                                tgt_is_causal=tgt_is_causal, memory_is_causal=memory_is_causal)
+                                tgt_is_causal=tgt_is_causal, memory_is_causal=memory_is_causal, freqs_cis=freqs_cis)
             
         self.last_decoder_output = output.detach().cpu()
         self.dec_in  = np.array(self.last_decoder_input[0].detach().cpu().tolist()).T 
@@ -740,7 +956,7 @@ class TransformerDecoder(Module):
     def forward(self, tgt: Tensor, memory: Tensor, tgt_mask: Optional[Tensor] = None,
                 memory_mask: Optional[Tensor] = None,
                 memory_key_padding_mask: Optional[Tensor] = None, tgt_is_causal: Optional[bool] = None,
-                memory_is_causal: bool = False) -> Tensor:
+                memory_is_causal: bool = False, freq_cis: Optional[Tensor] = None) -> Tensor:
         r"""Pass the inputs (and mask) through the decoder layer in turn.
 
         Args:
@@ -789,7 +1005,7 @@ class TransformerDecoder(Module):
                             memory_mask=memory_mask,                            
                             memory_key_padding_mask=memory_key_padding_mask,
                             tgt_is_causal=tgt_is_causal,
-                            memory_is_causal=memory_is_causal)
+                            memory_is_causal=memory_is_causal, freq_cis=freq_cis)
 
         if self.norm is not None:
             output = self.norm(output)
@@ -1108,14 +1324,17 @@ class TransformerDecoderLayer(Module):
 
     __constants__ = ['norm_first']
 
-    def __init__(self, d_model: int, nhead: int, dim_feedforward: int = 2048, use_moe: bool = False, num_experts: int = 16,
+    def __init__(self, d_model: int, nhead: int, dim_feedforward: int = 2048, latent_dimensions: tuple = None, use_moe: bool = False, num_experts: int = 16,
                  dropout: float = 0.1, activation: Union[str, Callable[[Tensor], Tensor]] = F.relu,
                  layer_norm_eps: float = 1e-5, batch_first: bool = False, norm_first: bool = False,
                  bias: bool = True, device=None, dtype=None) -> None:
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
-
-        self.self_attn = MultiHeadSelfAttention(d_model, nhead, dropout=dropout, batch_first=batch_first, **factory_kwargs) 
+        if latent_dimensions is not None:
+            self.self_attn = MultiHeadLatentAttention(d_model, nhead, latent_dimensions=latent_dimensions, dropout=dropout, batch_first=batch_first, **factory_kwargs)
+        else:
+            self.self_attn = MultiHeadSelfAttention(d_model, nhead, dropout=dropout, batch_first=batch_first, **factory_kwargs)
+        # self.self_attn = MultiHeadLatentAttention(d_model, nhead, )
         self.multihead_attn = MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=batch_first,
                                                  bias=bias, **factory_kwargs)
         self.use_moe = use_moe
@@ -1169,6 +1388,7 @@ class TransformerDecoderLayer(Module):
         memory: Tensor,
         memory_mask: Optional[Tensor] = None,
         memory_key_padding_mask: Optional[Tensor] = None,
+        freq_cis: Optional[Tensor] = None,
         tgt_is_causal: bool = False,
         memory_is_causal: bool = False,
     ) -> Tensor:
@@ -1203,7 +1423,7 @@ class TransformerDecoderLayer(Module):
         x = tgt
         # print(f'target is causal: {tgt_is_causal}')
         if self.norm_first:
-            x = x + self._sa_block(self.norm1(x), tgt_is_causal)
+            x = x + self._sa_block(self.norm1(x), freq_cis=freq_cis, is_causal=tgt_is_causal)
             x = x + self._mha_block(self.norm2(x), memory, memory_mask, memory_key_padding_mask, memory_is_causal)
             if self.use_moe:
                 m, total_aux_loss, balance_loss, router_z_loss = self.moe_block(x)
@@ -1211,7 +1431,7 @@ class TransformerDecoderLayer(Module):
             else:
                 x = x + self._ff_block(self.norm3(x))
         else:
-            x = self.norm1(x + self._sa_block(x, tgt_is_causal))
+            x = self.norm1(x + self._sa_block(x, freq_cis=freq_cis, is_causal=tgt_is_causal))
             x = self.norm2(x + self._mha_block(x, memory, memory_mask, memory_key_padding_mask, memory_is_causal))
             if self.use_moe:
                 m, total_aux_loss, balance_loss, router_z_loss = self.moe_block(x)
@@ -1227,8 +1447,12 @@ class TransformerDecoderLayer(Module):
 
     # self-attention block
     def _sa_block(self, x: Tensor,
+                  freq_cis: Optional[Tensor] = None,
                   is_causal: bool = False) -> Tensor:
-        x = self.self_attn(x, is_causal=is_causal)
+        if freq_cis is not None:
+            x = self.self_attn(x, freq_cis=freq_cis, is_causal=is_causal)
+        else:
+            x = self.self_attn(x, is_causal=is_causal)
         return self.dropout1(x)
 
     # multihead attention block
