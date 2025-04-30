@@ -1,4 +1,0 @@
-[2025-04-28 18:59:28,524] [INFO] [real_accelerator.py:239:get_accelerator] Setting ds_accelerator to cuda (auto detect)
-usage: accelerate <command> [<args>]
-Accelerate CLI tool: error: unrecognized arguments: --multi-gpu
-Warning: The cache directory for DeepSpeed Triton autotune, /home/ms1438/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.

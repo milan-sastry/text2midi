@@ -5,7 +5,7 @@ import yaml
 import math
 import time
 from transformers import get_scheduler
-#import wandb
+import wandb
 import pickle
 import numpy as np
 import json
@@ -96,8 +96,9 @@ if accelerator.is_main_process:
         os.makedirs(output_dir, exist_ok=True)
     os.makedirs("{}/{}".format(output_dir, "outputs"), exist_ok=True)
     accelerator.project_configuration.automatic_checkpoint_naming = False
-   #wandb.login(key="eb9179617385483c4f4fa144e94605f18574b7b5")
-   #wandb.init(project="Text-2-Midi", settings=wandb.Settings(init_timeout=120))
+    os.environ["WANDB_MODE"] = "offline"
+    wandb.login(key="eb9179617385483c4f4fa144e94605f18574b7b5")
+    wandb.init(project="Text-2-Midi", settings=wandb.Settings(init_timeout=120))
 accelerator.wait_for_everyone()
 device = accelerator.device
 
@@ -186,7 +187,7 @@ def train_model_accelerate(model, dataloader, criterion, num_epochs, max_train_s
                     result["epoch"] = epoch+1
                     result["step"] = completed_steps
                     result["train_loss"] = round(total_loss.item()/(gradient_accumulation_steps*completed_steps),4)
-                   #wandb.log(result)
+                    wandb.log(result)
             if isinstance(checkpointing_steps, int):
                 if completed_steps % checkpointing_steps == 0:
                     output_dir = f"step_{completed_steps }"

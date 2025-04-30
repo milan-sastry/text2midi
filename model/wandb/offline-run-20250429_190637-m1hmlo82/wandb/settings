@@ -1,0 +1,5 @@
+[default]
+entity = ms1438-princeton-university
+project = Text-2-Midi
+base_url = https://api.wandb.ai
+

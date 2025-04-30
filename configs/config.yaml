@@ -55,8 +55,4 @@ raw_data:
       folder_path: /scratch/network/ms1438
       file_extension: mid
     
-
-deepspeed_config:
-  deepspeed_config_path: /home/ms1438/text2midi/configs/ds_config.json
-
 artifact_folder: ../artifacts

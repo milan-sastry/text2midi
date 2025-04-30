@@ -1,36 +1,0 @@
-[2025-04-28 18:41:44,192] [INFO] [real_accelerator.py:239:get_accelerator] Setting ds_accelerator to cuda (auto detect)
-[2025-04-28 18:41:50,018] [INFO] [real_accelerator.py:239:get_accelerator] Setting ds_accelerator to cuda (auto detect)
-/home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/accelerate/accelerator.py:249: FutureWarning: `logging_dir` is deprecated and will be removed in version 0.18.0 of 🤗 Accelerate. Use `project_dir` instead.
-  warnings.warn(
-/home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/accelerate/accelerator.py:416: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
-  self.scaler = torch.cuda.amp.GradScaler(**kwargs)
-04/28/2025 18:41:53 - INFO - __main__ - Distributed environment: DistributedType.NO
-Num processes: 1
-Process index: 0
-Local process index: 0
-Device: cuda
-
-Mixed precision type: fp16
-
-You are using the default legacy behaviour of the <class 'transformers.models.t5.tokenization_t5.T5Tokenizer'>. This is expected, and simply means that the `legacy` (previous) behavior will be used so nothing changes for you. If you want to use the new behaviour, set `legacy=False`. This should only be set if you understand what it means, and thoroughly read the reason why this was added as explained in https://github.com/huggingface/transformers/pull/24565
-/home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/torch/utils/data/dataloader.py:617: UserWarning: This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 1, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
-  warnings.warn(
-/home/ms1438/.conda/envs/venv/lib/python3.12/site-packages/accelerate/accelerator.py:1235: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
-  model.forward = torch.cuda.amp.autocast(dtype=torch.float16)(model.forward)
-04/28/2025 18:41:54 - INFO - __main__ - ***** Running training *****
-04/28/2025 18:41:54 - INFO - __main__ -   Num examples = 168385
-04/28/2025 18:41:54 - INFO - __main__ -   Num Epochs = 140
-04/28/2025 18:41:54 - INFO - __main__ -   Instantaneous batch size per device = 8
-04/28/2025 18:41:54 - INFO - __main__ -   Total train batch size (w. parallel, distributed & accumulation) = 32
-04/28/2025 18:41:54 - INFO - __main__ -   Gradient Accumulation steps = 4
-04/28/2025 18:41:54 - INFO - __main__ -   Total optimization steps = 736680
-CUDA_VISIBLE_DEVICES: 0
-CUDA device count: 1
-CUDA current device: 0
-CUDA device name: Tesla V100-PCIE-32GB
-Length of dataset:  168385
-Total number of trainable parameters: 114223628
-num_update_steps_per_epoch 5262
-max_train_steps None
-max_train_steps 736680
-  0%|          | 0/736680 [00:00<?, ?it/s]  0%|          | 0/736680 [00:11<?, ?it/s, Loss=7.03]  0%|          | 1/736680 [00:11<2270:07:10, 11.09s/it, Loss=7.03]  0%|          | 1/736680 [00:15<2270:07:10, 11.09s/it, Loss=6.94]  0%|          | 2/736680 [00:15<1421:48:17,  6.95s/it, Loss=6.94]  0%|          | 2/736680 [00:19<1421:48:17,  6.95s/it, Loss=7.08]  0%|          | 3/736680 [00:19<1220:02:37,  5.96s/it, Loss=7.08]  0%|          | 3/736680 [00:24<1220:02:37,  5.96s/it, Loss=7.04]  0%|          | 4/736680 [00:24<1101:24:55,  5.38s/it, Loss=7.04]  0%|          | 4/736680 [00:28<1101:24:55,  5.38s/it, Loss=6.97]  0%|          | 5/736680 [00:28<1012:40:44,  4.95s/it, Loss=6.97]  0%|          | 5/736680 [00:32<1012:40:44,  4.95s/it, Loss=7.06]  0%|          | 6/736680 [00:32<957:23:01,  4.68s/it, Loss=7.06]   0%|          | 6/736680 [00:37<957:23:01,  4.68s/it, Loss=6.95]  0%|          | 7/736680 [00:37<939:57:59,  4.59s/it, Loss=6.95]  0%|          | 7/736680 [00:41<939:57:59,  4.59s/it, Loss=7.05]  0%|          | 8/736680 [00:41<925:44:38,  4.52s/it, Loss=7.05]  0%|          | 8/736680 [00:45<925:44:38,  4.52s/it, Loss=6.99]  0%|          | 9/736680 [00:45<913:37:46,  4.46s/it, Loss=6.99]  0%|          | 9/736680 [00:49<913:37:46,  4.46s/it, Loss=6.94]  0%|          | 10/736680 [00:49<890:52:02,  4.35s/it, Loss=6.94]  0%|          | 10/736680 [00:54<890:52:02,  4.35s/it, Loss=6.94]  0%|          | 11/736680 [00:54<892:42:51,  4.36s/it, Loss=6.94]  0%|          | 11/736680 [00:58<892:42:51,  4.36s/it, Loss=6.93]  0%|          | 12/736680 [00:58<902:14:39,  4.41s/it, Loss=6.93]  0%|          | 12/736680 [01:03<902:14:39,  4.41s/it, Loss=6.97]  0%|          | 13/736680 [01:03<896:11:02,  4.38s/it, Loss=6.97]  0%|          | 13/736680 [01:07<896:11:02,  4.38s/it, Loss=7.06]  0%|          | 14/736680 [01:07<881:28:01,  4.31s/it, Loss=7.06]  0%|          | 14/736680 [01:11<881:28:01,  4.31s/it, Loss=6.99]  0%|          | 15/736680 [01:11<881:03:27,  4.31s/it, Loss=6.99]  0%|          | 15/736680 [01:16<881:03:27,  4.31s/it, Loss=6.96]  0%|          | 16/736680 [01:16<885:15:05,  4.33s/it, Loss=6.96]  0%|          | 16/736680 [01:20<885:15:05,  4.33s/it, Loss=7.01]  0%|          | 17/736680 [01:20<871:28:33,  4.26s/it, Loss=7.01]  0%|          | 17/736680 [01:24<871:28:33,  4.26s/it, Loss=6.9]   0%|          | 18/736680 [01:24<879:25:24,  4.30s/it, Loss=6.9]  0%|          | 18/736680 [01:28<879:25:24,  4.30s/it, Loss=6.98]  0%|          | 19/736680 [01:28<862:25:37,  4.21s/it, Loss=6.98]  0%|          | 19/736680 [01:32<862:25:37,  4.21s/it, Loss=6.94]  0%|          | 20/736680 [01:32<855:29:03,  4.18s/it, Loss=6.94]  0%|          | 20/736680 [01:37<855:29:03,  4.18s/it, Loss=6.78]  0%|          | 21/736680 [01:37<872:55:42,  4.27s/it, Loss=6.78]  0%|          | 21/736680 [01:41<872:55:42,  4.27s/it, Loss=6.87]  0%|          | 22/736680 [01:41<879:53:42,  4.30s/it, Loss=6.87]  0%|          | 22/736680 [01:45<879:53:42,  4.30s/it, Loss=6.9]   0%|          | 23/736680 [01:45<861:55:38,  4.21s/it, Loss=6.9]  0%|          | 23/736680 [01:49<861:55:38,  4.21s/it, Loss=6.89]  0%|          | 24/736680 [01:49<873:13:52,  4.27s/it, Loss=6.89]  0%|          | 24/736680 [01:53<873:13:52,  4.27s/it, Loss=6.95]  0%|          | 25/736680 [01:53<855:41:04,  4.18s/it, Loss=6.95]  0%|          | 25/736680 [01:58<855:41:04,  4.18s/it, Loss=6.99]  0%|          | 26/736680 [01:58<873:15:48,  4.27s/it, Loss=6.99]  0%|          | 26/736680 [02:03<873:15:48,  4.27s/it, Loss=6.97]  0%|          | 27/736680 [02:03<904:12:12,  4.42s/it, Loss=6.97]  0%|          | 27/736680 [02:07<904:12:12,  4.42s/it, Loss=6.92]  0%|          | 28/736680 [02:07<889:25:24,  4.35s/it, Loss=6.92]slurmstepd: error: *** JOB 2446650 ON adroit-h11g3 CANCELLED AT 2025-04-28T18:44:02 ***
