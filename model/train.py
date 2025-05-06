@@ -1,10 +1,10 @@
 import os 
-print("CUDA_VISIBLE_DEVICES:", os.environ["CUDA_VISIBLE_DEVICES"])
+#print("CUDA_VISIBLE_DEVICES:", os.environ["CUDA_VISIBLE_DEVICES"])
 import torch
-print("CUDA device count:", torch.cuda.device_count())
-print("CUDA current device:", torch.cuda.current_device())
-print("CUDA device name:", torch.cuda.get_device_name(torch.cuda.current_device()))
-os.environ['CUDA_VISIBLE_DEVICES']="2,3"
+#print("CUDA device count:", torch.cuda.device_count())
+#print("CUDA current device:", torch.cuda.current_device())
+#print("CUDA device name:", torch.cuda.get_device_name(torch.cuda.current_device()))
+#os.environ['CUDA_VISIBLE_DEVICES']="2,3"
 from torch.cuda import is_available as cuda_available, is_bf16_supported
 from torch.backends.mps import is_available as mps_available
 import torch.nn as nn
@@ -44,20 +44,20 @@ epochs = configs['training']['text2midi_model']['epochs']
 # Artifact folder
 artifact_folder = configs['artifact_folder']
 # Load encoder tokenizer json file dictionary
-tokenizer_filepath = os.path.join(artifact_folder, "vocab.pkl")
+tokenizer_filepath = os.path.join(artifact_folder, "vocab_remi.pkl")
 # Load the tokenizer dictionary
 with open(tokenizer_filepath, "rb") as f:
     tokenizer = pickle.load(f)
 
 # Get the vocab size
-vocab_size = len(tokenizer)+1
+vocab_size = len(tokenizer)
 print("Vocab size: ", vocab_size)
 
 caption_dataset_path = configs['raw_data']['caption_dataset_path']
 # Load the caption dataset
 with jsonlines.open(caption_dataset_path) as reader:
     captions = list(reader)
-
+    captions = captions[:len(captions)//100]
 
 def collate_fn(batch):
     """
@@ -78,7 +78,7 @@ def collate_fn(batch):
 
 
 # Load the dataset
-dataset = Text2MusicDataset(configs, captions, tokenizer, mode="train", shuffle = True)
+dataset = Text2MusicDataset(configs, captions, remi_tokenizer=tokenizer, mode="train", shuffle = True)
 data_length = len(dataset)
 dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4, collate_fn=collate_fn)
 
@@ -104,11 +104,11 @@ if use_deepspeed:
     torch.backends.cuda.enable_mem_efficient_sdp(False)
     torch.backends.cuda.enable_flash_sdp(False)
 else:
-    device = torch.device("cuda:3" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(f"Device: {device}")
 
 print_every = 10
-model = Transformer(vocab_size, d_model, nhead, max_len, num_layers, dim_feedforward, use_moe, num_experts, device=device)
+model = Transformer(vocab_size, d_model, nhead, max_len, num_layers, dim_feedforward, None, use_moe, num_experts, device=device)
 # Print number of parameters
 num_params = sum(p.numel() for p in model.parameters())
 print(f"Number of parameters: {num_params}")
@@ -133,6 +133,7 @@ def train_model(model, dataloader, criterion, num_epochs, optimizer=None, data_l
         total_loss = 0
         with tqdm(total=int(data_length/batch_size), desc=f"Epoch {epoch + 1}/{num_epochs}") as pbar:
             for step, batch in enumerate(dataloader):
+                print(f"Step {step}/{len(dataloader)}")
                 if use_deepspeed:
                     model.zero_grad()
                 else:

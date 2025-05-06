@@ -117,7 +117,6 @@ if __name__ == "__main__":
     # Load the caption dataset
     with jsonlines.open(caption_dataset_path) as reader:
         captions = list(reader)
-        captions = captions[:len(captions//100]
 
     # Load the dataset
     dataset = Text2MusicDataset(configs, captions, mode="train", shuffle = True)

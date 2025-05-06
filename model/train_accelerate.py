@@ -105,8 +105,8 @@ device = accelerator.device
 with accelerator.main_process_first():
     dataset = Text2MusicDataset(configs, captions, remi_tokenizer=tokenizer, mode="train", shuffle=True)
     dataloader = DataLoader(dataset, batch_size=per_device_train_batch_size, shuffle=True, num_workers=4, collate_fn=collate_fn, drop_last=True)
-
-model = Transformer(vocab_size, d_model, nhead, max_len, num_layers, dim_feedforward, use_moe, num_experts, device=device)
+latent_dimensions = (64, 32, 64, 16, 8)
+model = Transformer(vocab_size, d_model, nhead, max_len, num_layers, dim_feedforward, None, use_moe, num_experts, device=device)
 #model.load_state_dict(torch.load('/root/output_test_new/epoch_68/pytorch_model.bin', map_location=device))
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)

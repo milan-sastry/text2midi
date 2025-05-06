@@ -442,6 +442,8 @@ class MultiHeadSelfAttention(nn.Module):
         # q = apply_rotary_emb(q, freqs_cis)
         # k = apply_rotary_emb(k, freqs_cis)
         out = torch.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=is_causal)
+        attn_weights = torch.matmul(q, k.transpose(-2, -1)) * self.scale
+        self.attention_weights = torch.nn.functional.softmax(attn_weights, dim=-1).detach().cpu()
         out = out.contiguous().view(b, n, -1)
         out = self.dropout(out)
         return self.to_out(out)
@@ -506,10 +508,10 @@ class Transformer(Module):
 
 
         if latent_dimensions is not None:
-            assert use_moe is False, "Mixture of Experts and Multihead Latent Attention cannot be used together in Transformer class"
-            assert len(latent_dimensions) == 5, f"latent_dimensions should be a tuple of 5 elements, got {len(latent_dimensions)}"
+            #assert use_moe is False, "Mixture of Experts and Multihead Latent Attention cannot be used together in Transformer class"
+            #assert len(latent_dimensions) == 5, f"latent_dimensions should be a tuple of 5 elements, got {len(latent_dimensions)}"
             rope_head_dim = latent_dimensions[2]
-            cos, isin = precompute_freqs_cis_latent(rope_head_dim, max_len * 2)
+            cos, isin = precompute_freqs_cis_latent(rope_head_dim, max_len * 2, device=device)
             self.register_buffer("freq_cos", cos)
             self.register_buffer("freq_sin", isin)
         else:
@@ -638,7 +640,7 @@ class Transformer(Module):
         else:
             output = self.decoder(tgt, memory, memory_mask=memory_mask,                                
                                 memory_key_padding_mask=memory_key_padding_mask,
-                                tgt_is_causal=tgt_is_causal, memory_is_causal=memory_is_causal, freqs_cis=freqs_cis)
+                                tgt_is_causal=tgt_is_causal, memory_is_causal=memory_is_causal)
             
         self.last_decoder_output = output.detach().cpu()
         self.dec_in  = np.array(self.last_decoder_input[0].detach().cpu().tolist()).T 
