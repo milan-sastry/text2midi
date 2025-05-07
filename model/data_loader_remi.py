@@ -58,7 +58,7 @@ class Text2MusicDataset(Dataset):
     def __getitem__(self, idx):
         caption = self.captions[idx]['caption']
         midi_filepath = os.path.join(self.dataset_path, self.captions[idx]['location'])
-        print(f'midi filepath: {midi_filepath}')
+        #print(f'midi filepath: {midi_filepath}')
         # Read the MIDI file
         tokens = self.remi_tokenizer(midi_filepath)
 

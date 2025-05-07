@@ -1,2 +1,0 @@
-[2025-04-22 16:40:31,296] [INFO] [real_accelerator.py:239:get_accelerator] Setting ds_accelerator to cuda (auto detect)
-accelerate configuration saved at /home/ms1438/.cache/huggingface/accelerate/default_config.yaml

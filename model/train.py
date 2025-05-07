@@ -108,7 +108,8 @@ else:
 print(f"Device: {device}")
 
 print_every = 10
-model = Transformer(vocab_size, d_model, nhead, max_len, num_layers, dim_feedforward, None, use_moe, num_experts, device=device)
+latent_dimension = (5, 5, 5, 5, 5)
+model = Transformer(vocab_size, d_model, nhead, max_len, num_layers, dim_feedforward, latent_dimension, use_moe, num_experts, device=device)
 # Print number of parameters
 num_params = sum(p.numel() for p in model.parameters())
 print(f"Number of parameters: {num_params}")

@@ -1,0 +1,3 @@
+[2025-05-06 15:48:39,747] [INFO] [real_accelerator.py:239:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+Warning: The cache directory for DeepSpeed Triton autotune, /home/ms1438/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+accelerate configuration saved at /home/ms1438/.cache/huggingface/accelerate/default_config.yaml

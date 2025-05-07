@@ -442,8 +442,9 @@ class MultiHeadSelfAttention(nn.Module):
         # q = apply_rotary_emb(q, freqs_cis)
         # k = apply_rotary_emb(k, freqs_cis)
         out = torch.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=is_causal)
-        attn_weights = torch.matmul(q, k.transpose(-2, -1)) * self.scale
-        self.attention_weights = torch.nn.functional.softmax(attn_weights, dim=-1).detach().cpu()
+       #for visualizing attention, keep this commented out during training
+       #attn_weights = torch.matmul(q, k.transpose(-2, -1)) * self.scale
+        #self.attention_weights = torch.nn.functional.softmax(attn_weights, dim=-1).detach().cpu()
         out = out.contiguous().view(b, n, -1)
         out = self.dropout(out)
         return self.to_out(out)
@@ -511,7 +512,7 @@ class Transformer(Module):
             #assert use_moe is False, "Mixture of Experts and Multihead Latent Attention cannot be used together in Transformer class"
             #assert len(latent_dimensions) == 5, f"latent_dimensions should be a tuple of 5 elements, got {len(latent_dimensions)}"
             rope_head_dim = latent_dimensions[2]
-            cos, isin = precompute_freqs_cis_latent(rope_head_dim, max_len * 2, device=device)
+            cos, isin = precompute_freqs_cis_latent(rope_head_dim, max_len * 2)
             self.register_buffer("freq_cos", cos)
             self.register_buffer("freq_sin", isin)
         else:
@@ -622,7 +623,8 @@ class Transformer(Module):
 
         tgt = self.input_emb(tgt) * math.sqrt(self.d_model)
         tgt = self.pos_encoder(tgt)
-        self.last_decoder_input = tgt.detach().cpu()
+        #keep this commented out too for training
+        #self.last_decoder_input = tgt.detach().cpu()
 
         if self.freq_cos is not None and self.freq_sin is not None:
             freqs_cis = self.freq_cos[:N], self.freq_sin[:N]
@@ -641,10 +643,10 @@ class Transformer(Module):
             output = self.decoder(tgt, memory, memory_mask=memory_mask,                                
                                 memory_key_padding_mask=memory_key_padding_mask,
                                 tgt_is_causal=tgt_is_causal, memory_is_causal=memory_is_causal)
-            
-        self.last_decoder_output = output.detach().cpu()
-        self.dec_in  = np.array(self.last_decoder_input[0].detach().cpu().tolist()).T 
-        self.dec_out = np.array(self.last_decoder_output[0].detach().cpu().tolist()).T
+        #same for this   
+        #self.last_decoder_output = output.detach().cpu()
+        #self.dec_in  = np.array(self.last_decoder_input[0].detach().cpu().tolist()).T 
+        #self.dec_out = np.array(self.last_decoder_output[0].detach().cpu().tolist()).T
        
         output = self.projection(output)
         # output = F.log_softmax(output, dim=-1)

@@ -4,6 +4,47 @@ import torch.nn as nn
 from transformers import T5Tokenizer
 from model.transformer_model import Transformer
 from huggingface_hub import hf_hub_download
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+
+def visualize_attention(model, input_text):
+    """Visualize attention after generation"""
+    # Get attention weights from the last decoder layer's self attention
+    # This assumes you've already run model.generate()
+    attention_weights = model.decoder.layers[-1].self_attn.attention_weights
+    
+    if attention_weights is None:
+        print("No attention weights stored. Run generation first.")
+        return
+    
+    # Get input tokens
+    input_tokens = tokenizer.tokenize(input_text)
+    
+    # Create visualization
+    plt.figure(figsize=(12, 10))
+    
+    # We'll use the first head's attention weights
+    # Shape is typically [batch, heads, seq_len, seq_len]
+    attn = attention_weights[0, 0, :, :].numpy()
+    
+    # Plot heatmap (limit to a reasonable size if too large)
+    max_tokens = min(30, attn.shape[0])  # Limit to 30 tokens for readability
+    
+    # Create readable token labels
+    token_labels = input_tokens[:max_tokens]
+    
+    sns.heatmap(attn[:max_tokens, :max_tokens], 
+                xticklabels=token_labels,
+                yticklabels=token_labels,
+                cmap='viridis')
+    
+    plt.title('Attention Map - Last Layer, First Head')
+    plt.tight_layout()
+    plt.savefig('attention_visualization.png', dpi=300)
+    plt.show()
+    
+    return attn
 
 repo_id = "amaai-lab/text2midi"
 # Download the model.bin file
@@ -27,7 +68,7 @@ with open(tokenizer_path, "rb") as f:
 # Get the vocab size
 vocab_size = len(r_tokenizer)
 print("Vocab size: ", vocab_size)
-model = Transformer(vocab_size, 768, 8, 2048, 18, 1024, False, 8, device=device)
+model = Transformer(vocab_size, 768, 8, 2048, 18, 1024, None, False, 8, device=device)
 model.load_state_dict(torch.load(model_path, map_location=device))
 model.eval()
 tokenizer = T5Tokenizer.from_pretrained("google/flan-t5-base")
@@ -36,7 +77,7 @@ print('Model loaded.')
 
 
 # Enter the text prompt and tokenize it
-src = "A melodic electronic song with ambient elements, featuring piano, acoustic guitar, alto saxophone, string ensemble, and electric bass. Set in G minor with a 4/4 time signature, it moves at a lively Presto tempo. The composition evokes a blend of relaxation and darkness, with hints of happiness and a meditative quality."
+src = "A melodic classical piano song  Set in G minor with a 4/4 time signature, it moves at a lively Presto tempo. The composition evokes a blend of relaxation and darkness, with hints of happiness and a meditative quality."
 print('Generating for prompt: ' + src)
 
 inputs = tokenizer(src, return_tensors='pt', padding=True, truncation=True)
@@ -46,7 +87,10 @@ attention_mask =nn.utils.rnn.pad_sequence(inputs.attention_mask, batch_first=Tru
 attention_mask = attention_mask.to(device)
 
 # Generate the midi
-output = model.generate(input_ids, attention_mask, max_len=2048,temperature = 1.0)
+output = model.generate(input_ids, attention_mask, max_len=20,temperature = 1.0)
 output_list = output[0].tolist()
 generated_midi = r_tokenizer.decode(output_list)
 generated_midi.dump_midi("output.mid")
+
+attention_matrix = visualize_attention(model, src)
+print("Attention visualization saved to 'attention_visualization.png'")
