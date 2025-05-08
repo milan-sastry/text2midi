@@ -194,7 +194,7 @@ def precompute_freqs_cis_latent(dim: int, end: int, theta: float = 10000.0):
     # e^it = cos(t) + i sin(t)
     freqs_cos = torch.cos(freqs)  # real
     freqs_sin = torch.sin(freqs)  # imaginary
-    return freqs_cos.to(device), freqs_sin.to(device)
+    return freqs_cos, freqs_sin
 
 def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
     ndim = x.dim()
@@ -274,13 +274,15 @@ class MultiHeadLatentAttention(nn.Module):
         num_heads: int,
         latent_dimensions: tuple,
         batch_first: bool = True,
-        dropout: float = 0.1):
+        dropout: float = 0.1,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None):
         super().__init__()
         
-        assert config.v_head_dim is not None , f"v_head_dim is not defined {config.v_head_dim=}"
-        assert config.q_lora_rank is not None , f"q_lora_rank is not defined {config.q_lora_rank=}"
-        assert config.kv_lora_rank is not None , f"kv_lora_rank is not defined {config.kv_lora_rank=}"
-        assert config.rope_head_dim is not None , f"rope_head_dim is not defined {config.rope_head_dim=}"
+        # assert config.v_head_dim is not None , f"v_head_dim is not defined {config.v_head_dim=}"
+        # assert config.q_lora_rank is not None , f"q_lora_rank is not defined {config.q_lora_rank=}"
+        # assert config.kv_lora_rank is not None , f"kv_lora_rank is not defined {config.kv_lora_rank=}"
+        # assert config.rope_head_dim is not None , f"rope_head_dim is not defined {config.rope_head_dim=}"
         assert len(latent_dimensions) == 5, f"latent_dimensions should be a tuple of 5 elements, got {len(latent_dimensions)}"
     
         self.batch_first = batch_first
@@ -289,7 +291,7 @@ class MultiHeadLatentAttention(nn.Module):
 
         self.v_head_dim, self.nope_head_dim, self.rope_head_dim, self.q_lora_rank, self.kv_lora_rank = latent_dimensions
         
-        self.dropout = config.dropout
+        self.dropout = dropout
 
         self.attn_map = None
         
@@ -302,26 +304,28 @@ class MultiHeadLatentAttention(nn.Module):
         # this is dims between wQ and wK
         self.nope_dim = self.num_heads * self.nope_head_dim
         self.rope_dim = self.num_heads * self.rope_head_dim  
+
+        factory_kwargs = {'device': device, 'dtype': dtype}
         
         # query compression
         self.compress_q_linear = nn.Linear(self.dim, self.q_lora_rank, bias=False)  # W_DQ
         self.decompress_q_nope = nn.Linear(self.q_lora_rank, self.nope_dim, bias=False)
         self.decompress_q_rope = nn.Linear(self.q_lora_rank, self.rope_dim, bias=False)
-        self.q_norm = nn.modules.normalization.RMSNorm(self.q_lora_rank)
+        self.q_norm = nn.modules.normalization.LayerNorm(self.q_lora_rank)
         
         
         # key and value compression
         self.compress_kv_linear = nn.Linear(self.dim, self.kv_lora_rank, bias=False)  # W_DKV
         self.decompress_k_nope = nn.Linear(self.kv_lora_rank, self.nope_dim, bias=False)
         self.decompress_v_linear = nn.Linear(self.kv_lora_rank, self.value_dim, bias=False)
-        self.kv_norm = nn.modules.normalization.RMSNorm(self.kv_lora_rank)
+        self.kv_norm = nn.modules.normalization.LayerNorm(self.kv_lora_rank)
         
         
         self.k_rope_linear = nn.Linear(self.dim, self.rope_head_dim  , bias=False)
         # self.rope_norm = RMSNorm(self.rope_dim) # not in deepseekv2
 
         self.proj = nn.Linear(self.value_dim , self.dim, bias=False)
-        self.res_dropout = nn.Dropout(p=config.dropout)
+        self.res_dropout = nn.Dropout(p=dropout)
         
         
     def forward(self, x: Tensor, freqs_cis: Tensor, is_causal: bool = True) -> Tensor:
@@ -368,7 +372,7 @@ class MultiHeadLatentAttention(nn.Module):
         k_recombined[:,:,:,self.nope_head_dim:] = k_rope
 
         output = F.scaled_dot_product_attention(q_recombined, k_recombined, value, is_causal=True, dropout_p=self.dropout)
-        output = out.transpose(1, 2).contiguous().view(batch_size, seq_len, self.num_heads * self.v_head_dim)
+        output = output.transpose(1, 2).contiguous().view(batch_size, seq_len, self.num_heads * self.v_head_dim)
 
         output = self.proj(output)
         output = self.res_dropout(output)
@@ -414,6 +418,7 @@ class MultiHeadSelfAttention(nn.Module):
         self.to_qkv = nn.Linear(embed_dim, hidden_dim * 3, bias=False, **factory_kwargs)
         self.to_out = nn.Linear(hidden_dim, embed_dim, bias=False, **factory_kwargs)
         self.dropout = nn.Dropout(dropout)
+        self.attention_weights = None
 
     def forward(self, x: torch.Tensor, is_causal: bool = True) -> torch.Tensor:
         
@@ -439,6 +444,10 @@ class MultiHeadSelfAttention(nn.Module):
                 dtype=x.dtype,
             ).to(x.device)
         freqs_cis = self.freqs_cis[: x.shape[1]]
+
+        with torch.no_grad():
+            attn_weights = torch.matmul(q, k.transpose(-2, -1)) * self.scale
+            self.attention_weights = torch.nn.functional.softmax(attn_weights, dim=-1).detach().cpu()
         # q = apply_rotary_emb(q, freqs_cis)
         # k = apply_rotary_emb(k, freqs_cis)
         out = torch.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=is_causal)
@@ -525,11 +534,14 @@ class Transformer(Module):
         for param in self.encoder.parameters():
             param.requires_grad = False
 
-        decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward, latent_dimensions, use_moe, num_experts, dropout,
+        decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward, None, use_moe, num_experts, dropout,
+                                                activation, layer_norm_eps, batch_first, norm_first,
+                                                bias, **factory_kwargs)
+        latent_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward, latent_dimensions, use_moe, num_experts, dropout,
                                                 activation, layer_norm_eps, batch_first, norm_first,
                                                 bias, **factory_kwargs)
         decoder_norm = LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
-        self.decoder = TransformerDecoder(decoder_layer, num_decoder_layers, use_moe, decoder_norm)
+        self.decoder = TransformerDecoder(decoder_layer,latent_layer, num_decoder_layers, use_moe, decoder_norm)
 
         self.projection = nn.Linear(d_model, n_vocab).to(device)
 
@@ -642,7 +654,7 @@ class Transformer(Module):
         else:
             output = self.decoder(tgt, memory, memory_mask=memory_mask,                                
                                 memory_key_padding_mask=memory_key_padding_mask,
-                                tgt_is_causal=tgt_is_causal, memory_is_causal=memory_is_causal)
+                                tgt_is_causal=tgt_is_causal, memory_is_causal=memory_is_causal,freq_cis=freqs_cis)
         #same for this   
         #self.last_decoder_output = output.detach().cpu()
         #self.dec_in  = np.array(self.last_decoder_input[0].detach().cpu().tolist()).T 
@@ -735,6 +747,7 @@ class Transformer(Module):
         for p in self.parameters():
             if p.dim() > 1:
                 xavier_uniform_(p)
+    
 
 
 
@@ -923,7 +936,6 @@ class TransformerEncoder(Module):
 
 
 
-
 class TransformerDecoder(Module):
     r"""TransformerDecoder is a stack of N decoder layers.
 
@@ -945,22 +957,26 @@ class TransformerDecoder(Module):
     def __init__(
         self,
         decoder_layer: "TransformerDecoderLayer",
+        latent_layer: Optional["TransformerDecoderLayer"],
         num_layers: int,
         use_moe: bool = False,
-        norm: Optional[Module] = None
+        norm: Optional[Module] = None,
     ) -> None:
         super().__init__()
         torch._C._log_api_usage_once(f"torch.nn.modules.{self.__class__.__name__}")
-        self.layers = _get_clones(decoder_layer, num_layers)
+        decodeer_layer = _get_clones(decoder_layer, (num_layers - 3))
+        latent_layer = _get_clones(latent_layer, 3)
+        self.layers = decodeer_layer + latent_layer
         self.num_layers = num_layers
         self.use_moe = use_moe
         self.norm = norm
-
+        self.attention_weights = [None] * num_layers
 
     def forward(self, tgt: Tensor, memory: Tensor, tgt_mask: Optional[Tensor] = None,
                 memory_mask: Optional[Tensor] = None,
                 memory_key_padding_mask: Optional[Tensor] = None, tgt_is_causal: Optional[bool] = None,
-                memory_is_causal: bool = False, freq_cis: Optional[Tensor] = None) -> Tensor:
+                memory_is_causal: bool = False, 
+                freq_cis: Optional[Tensor] = None) -> Tensor:
         r"""Pass the inputs (and mask) through the decoder layer in turn.
 
         Args:
@@ -1011,6 +1027,7 @@ class TransformerDecoder(Module):
                             tgt_is_causal=tgt_is_causal,
                             memory_is_causal=memory_is_causal, freq_cis=freq_cis)
 
+
         if self.norm is not None:
             output = self.norm(output)
 
@@ -1018,6 +1035,19 @@ class TransformerDecoder(Module):
             return output, sum_total_aux_loss
         else:
             return output
+            
+    def collect_attention_weights(self):
+        """
+        Collects attention weights from all layers of the decoder.
+        
+        Returns:
+            list: List of attention weight tensors from each layer
+        """
+        attention_weights = []
+        for i, layer in enumerate(self.layers):
+            if hasattr(layer.self_attn, 'attention_weights') and layer.self_attn.attention_weights is not None:
+                attention_weights.append(layer.self_attn.attention_weights)
+        return attention_weights
 
 
 
@@ -1453,8 +1483,8 @@ class TransformerDecoderLayer(Module):
     def _sa_block(self, x: Tensor,
                   freq_cis: Optional[Tensor] = None,
                   is_causal: bool = False) -> Tensor:
-        if freq_cis is not None:
-            x = self.self_attn(x, freq_cis=freq_cis, is_causal=is_causal)
+        if freq_cis is not None and isinstance(self.self_attn, MultiHeadLatentAttention):
+            x = self.self_attn(x, freqs_cis=freq_cis, is_causal=is_causal)
         else:
             x = self.self_attn(x, is_causal=is_causal)
         return self.dropout1(x)
