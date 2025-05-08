@@ -15,11 +15,12 @@ import torch
 from accelerate import DistributedDataParallelKwargs, Accelerator
 from accelerate.logging import get_logger
 from data_loader_remi import Text2MusicDataset
-from transformer_model import Transformer
+from transformer_model import Transformer, MultiHeadLatentAttention
 from torch.utils.data import DataLoader
 import logging
 print("CUDA_VISIBLE_DEVICES:", os.environ["CUDA_VISIBLE_DEVICES"])
 import torch
+from huggingface_hub import hf_hub_download
 print("CUDA device count:", torch.cuda.device_count())
 print("CUDA current device:", torch.cuda.current_device())
 print("CUDA device name:", torch.cuda.get_device_name(torch.cuda.current_device()))
@@ -105,14 +106,52 @@ device = accelerator.device
 with accelerator.main_process_first():
     dataset = Text2MusicDataset(configs, captions, remi_tokenizer=tokenizer, mode="train", shuffle=True)
     dataloader = DataLoader(dataset, batch_size=per_device_train_batch_size, shuffle=True, num_workers=4, collate_fn=collate_fn, drop_last=True)
-latent_dimensions = (64, 32, 64, 16, 8)
-model = Transformer(vocab_size, d_model, nhead, max_len, num_layers, dim_feedforward, None, use_moe, num_experts, device=device)
-#model.load_state_dict(torch.load('/root/output_test_new/epoch_68/pytorch_model.bin', map_location=device))
-def count_parameters(model):
-    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+v_head_dim = 96
+nope_head_dim = 48
+ope_head_dim = 48
+q_lora_rank = 64
+kv_lora_rank = 64
 
-total_params = count_parameters(model)
-print(f"Total number of trainable parameters: {total_params}")
+latent_dimension = (v_head_dim, nope_head_dim, ope_head_dim, q_lora_rank, kv_lora_rank)
+repo_id = "amaai-lab/text2midi"
+
+# model = Transformer(vocab_size, d_model, nhead, max_len, num_layers, dim_feedforward, latent_dimension, use_moe, num_experts, device=device)
+model_path = hf_hub_download(repo_id=repo_id, filename="pytorch_model.bin")
+model = Transformer(vocab_size, 
+                    d_model=d_model, 
+                    nhead=nhead, 
+                    max_len=max_len, 
+                    num_decoder_layers=num_layers, 
+                    dim_feedforward=dim_feedforward, 
+                    latent_dimensions=latent_dimension, 
+                    use_moe=use_moe, 
+                    num_experts=num_experts, 
+                    device=device)
+state_dict = torch.load(model_path, map_location=device)
+result = model.load_state_dict(state_dict, strict=False)
+
+
+
+#model.load_state_dict(torch.load('/root/output_test_new/epoch_68/pytorch_model.bin', map_location=device))
+for param in model.parameters():
+    param.requires_grad = False
+
+for layer in range(15, 18):
+    self_attn = model.decoder.layers[layer].self_attn
+    assert isinstance(self_attn, MultiHeadLatentAttention), f"Layer {layer} is not a MultiHeadLatentAttention layer"
+    for param in self_attn.parameters():
+        param.requires_grad = True
+
+for param in model.projection.parameters():
+    param.requires_grad = True
+
+# Print number of parameters
+num_params = sum(p.numel() for p in model.parameters())
+print(f"Number of parameters: {num_params}")
+# Print number of trainable parameters
+num_trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+print(f"Number of trainable parameters: {num_trainable_params}")
+
 
 optimizer = optim.Adam(model.parameters(), lr=1e-4)
 overrode_max_train_steps = False
