@@ -68,9 +68,30 @@ with open(tokenizer_path, "rb") as f:
 # Get the vocab size
 vocab_size = len(r_tokenizer)
 print("Vocab size: ", vocab_size)
-model = Transformer(vocab_size, 768, 8, 2048, 18, 1024, None, False, 8, device=device)
-model.load_state_dict(torch.load(model_path, map_location=device))
+
+v_head_dim = 96
+nope_head_dim = 48
+ope_head_dim = 48
+q_lora_rank = 64
+kv_lora_rank = 64
+
+latent_dimensions = (v_head_dim, nope_head_dim, ope_head_dim, q_lora_rank, kv_lora_rank)
+# self attention
+#model = Transformer(False,vocab_size, 768, 8, 2048, 18, 1024, latent_dimensions, False, 8, device=device)
+
+# latent attention
+model = Transformer(True,vocab_size, 768, 8, 2048, 18, 1024, latent_dimensions, False, 8, device=device)
+
+print(model)
+# when loading just self attention, initialize Transformer with latent_dimensions set to None, pass False as first parameter
+#model.load_state_dict(torch.load(model_path, map_location=device))
+latent_model_path = './last_block_latent.pth'
+self_model_path = './last_block_self.pth'
+#strict = false for self attention, because of freq_cos and freq_sin
+model.load_state_dict(torch.load(latent_model_path, map_location=torch.device('cpu')),strict=True)
 model.eval()
+# confirm Transformer architecture corresponds to the dict you are loading
+print(model)
 tokenizer = T5Tokenizer.from_pretrained("google/flan-t5-base")
 
 print('Model loaded.')
@@ -87,10 +108,10 @@ attention_mask =nn.utils.rnn.pad_sequence(inputs.attention_mask, batch_first=Tru
 attention_mask = attention_mask.to(device)
 
 # Generate the midi
-output = model.generate(input_ids, attention_mask, max_len=20,temperature = 1.0)
+output = model.generate(input_ids, attention_mask, max_len=2048,temperature = 1.0)
 output_list = output[0].tolist()
 generated_midi = r_tokenizer.decode(output_list)
 generated_midi.dump_midi("output.mid")
 
-attention_matrix = visualize_attention(model, src)
-print("Attention visualization saved to 'attention_visualization.png'")
+#attention_matrix = visualize_attention(model, src)
+#print("Attention visualization saved to 'attention_visualization.png'")

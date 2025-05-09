@@ -447,7 +447,7 @@ class MultiHeadSelfAttention(nn.Module):
 
         with torch.no_grad():
             attn_weights = torch.matmul(q, k.transpose(-2, -1)) * self.scale
-            self.attention_weights = torch.nn.functional.softmax(attn_weights, dim=-1).detach().cpu()
+            #self.attention_weights = torch.nn.functional.softmax(attn_weights, dim=-1).detach().cpu()
         # q = apply_rotary_emb(q, freqs_cis)
         # k = apply_rotary_emb(k, freqs_cis)
         out = torch.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=is_causal)
@@ -500,7 +500,7 @@ class Transformer(Module):
     https://github.com/pytorch/examples/tree/master/word_language_model
     """
 
-    def __init__(self, n_vocab: int = 30000, d_model: int = 512, nhead: int = 8, max_len: int = 5000,
+    def __init__(self, use_latent: bool, n_vocab: int = 30000, d_model: int = 512, nhead: int = 8, max_len: int = 5000,
                  num_decoder_layers: int = 6, dim_feedforward: int = 2048,
                  latent_dimensions: tuple = None, use_moe: bool = False, 
                  num_experts: int = 16, dropout: float = 0.1, 
@@ -541,7 +541,7 @@ class Transformer(Module):
                                                 activation, layer_norm_eps, batch_first, norm_first,
                                                 bias, **factory_kwargs)
         decoder_norm = LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
-        self.decoder = TransformerDecoder(decoder_layer,latent_layer, num_decoder_layers, use_moe, decoder_norm)
+        self.decoder = TransformerDecoder(decoder_layer,latent_layer, num_decoder_layers,use_latent, use_moe, decoder_norm)
 
         self.projection = nn.Linear(d_model, n_vocab).to(device)
 
@@ -721,7 +721,7 @@ class Transformer(Module):
                                       memory_key_padding_mask=None,
                                       tgt_is_causal=True, memory_is_causal=False)          
             # logits = self.projection(output)
-            if i % 200 == 0: self.plot_step(i)
+            #if i % 200 == 0: self.plot_step(i)
             logits = output
             output = F.log_softmax(logits/temperature, dim=-1)
             output = output.view(-1, output.size(-1))
@@ -959,14 +959,22 @@ class TransformerDecoder(Module):
         decoder_layer: "TransformerDecoderLayer",
         latent_layer: Optional["TransformerDecoderLayer"],
         num_layers: int,
+        use_latent: bool,
         use_moe: bool = False,
         norm: Optional[Module] = None,
     ) -> None:
         super().__init__()
         torch._C._log_api_usage_once(f"torch.nn.modules.{self.__class__.__name__}")
-        decodeer_layer = _get_clones(decoder_layer, (num_layers - 3))
-        latent_layer = _get_clones(latent_layer, 3)
-        self.layers = decodeer_layer + latent_layer
+        num_latent_blocks = 1
+        layers = None
+        if use_latent is not None:
+            if use_latent:
+                layers = _get_clones(decoder_layer, num_layers -num_latent_blocks) + _get_clones(latent_layer, num_latent_blocks)
+            else:
+                layers = _get_clones(decoder_layer, num_layers)
+
+        
+        self.layers = layers
         self.num_layers = num_layers
         self.use_moe = use_moe
         self.norm = norm
